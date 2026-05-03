@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Gummy Pack - Business Intelligence Dashboard</title>
+<link rel="stylesheet" href="styles.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">TGP</div>
+      <div>
+        <div class="brand-title">The Gummy Pack</div>
+        <div class="brand-sub">Business Command Center</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" data-section="dashboard">Dashboard</button>
+      <button class="nav-item" data-section="sales">Sales</button>
+      <button class="nav-item" data-section="products">Products</button>
+      <button class="nav-item" data-section="coupons">Coupons</button>
+      <button class="nav-item" data-section="marketing">Marketing</button>
+      <button class="nav-item" data-section="inventory">Inventory</button>
+      <button class="nav-item" data-section="customers">Customers</button>
+      <button class="nav-item" data-section="finance">Finance</button>
+      <button class="nav-item" data-section="insights">Insights</button>
+    </nav>
+    <div class="sidebar-footer">
+      <button id="exportBtn" class="btn btn-ghost">Export Data</button>
+      <button id="importBtn" class="btn btn-ghost">Import Data</button>
+      <input type="file" id="importFile" accept="application/json" hidden />
+      <button id="clearBtn" class="btn btn-danger-ghost">Clear All</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <h1 id="pageTitle">Executive Summary</h1>
+        <div class="page-sub" id="pageSub">Quick glance at overall business health</div>
+      </div>
+      <div class="topbar-right">
+        <div class="date-filter">
+          <label>View:</label>
+          <select id="periodFilter">
+            <option value="day">Day</option>
+            <option value="week" selected>Week</option>
+            <option value="month">Month</option>
+            <option value="quarter">Quarter</option>
+            <option value="year">Year</option>
+          </select>
+        </div>
+        <div class="health-badge">
+          <span class="health-label">Store Health</span>
+          <span class="health-score" id="healthScore">--</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 1. EXECUTIVE SUMMARY -->
+    <section class="page" id="page-dashboard">
+      <div class="kpi-group">
+        <div class="kpi-group-title">Daily Snapshot</div>
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-value" id="kpiTotalRev">$0</div></div>
+          <div class="kpi"><div class="kpi-label">Shopify Revenue</div><div class="kpi-value" id="kpiShopifyRev">$0</div></div>
+          <div class="kpi"><div class="kpi-label">TikTok Revenue</div><div class="kpi-value" id="kpiTiktokRev">$0</div></div>
+          <div class="kpi"><div class="kpi-label">Orders</div><div class="kpi-value" id="kpiOrders">0</div></div>
+          <div class="kpi"><div class="kpi-label">AOV</div><div class="kpi-value" id="kpiAOV">$0</div></div>
+          <div class="kpi"><div class="kpi-label">Net Estimate</div><div class="kpi-value" id="kpiNet">$0</div></div>
+          <div class="kpi"><div class="kpi-label">Ad Spend</div><div class="kpi-value" id="kpiAdSpend">$0</div></div>
+          <div class="kpi"><div class="kpi-label">ROAS</div><div class="kpi-value" id="kpiROAS">0.00x</div></div>
+        </div>
+      </div>
+
+      <div class="kpi-group">
+        <div class="kpi-group-title">Weekly</div>
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-label">Revenue Growth</div><div class="kpi-value" id="kpiRevGrowth">0%</div></div>
+          <div class="kpi"><div class="kpi-label">Best Selling Product</div><div class="kpi-value sm" id="kpiBestProduct">—</div></div>
+          <div class="kpi"><div class="kpi-label">Best Platform</div><div class="kpi-value sm" id="kpiBestPlatform">—</div></div>
+          <div class="kpi"><div class="kpi-label">Top Coupon</div><div class="kpi-value sm" id="kpiTopCoupon">—</div></div>
+          <div class="kpi"><div class="kpi-label">Return Rate</div><div class="kpi-value" id="kpiReturnRate">0%</div></div>
+          <div class="kpi"><div class="kpi-label">Social Growth</div><div class="kpi-value" id="kpiSocialGrowth">+0</div></div>
+        </div>
+      </div>
+
+      <div class="kpi-group">
+        <div class="kpi-group-title">Monthly</div>
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-label">Gross Revenue</div><div class="kpi-value" id="kpiGross">$0</div></div>
+          <div class="kpi"><div class="kpi-label">Net Revenue</div><div class="kpi-value" id="kpiNetMonth">$0</div></div>
+          <div class="kpi"><div class="kpi-label">Total Orders</div><div class="kpi-value" id="kpiTotalOrders">0</div></div>
+          <div class="kpi"><div class="kpi-label">Repeat Customer Rate</div><div class="kpi-value" id="kpiRepeatRate">0%</div></div>
+          <div class="kpi"><div class="kpi-label">Refund Loss</div><div class="kpi-value" id="kpiRefundLoss">$0</div></div>
+          <div class="kpi"><div class="kpi-label">Fulfillment Score</div><div class="kpi-value" id="kpiFulfillmentScore">--/100</div></div>
+        </div>
+      </div>
+
+      <div class="row two">
+        <div class="card">
+          <div class="card-title">Revenue Trend (Shopify vs TikTok)</div>
+          <canvas id="chartRevenueTrend" height="120"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">Action Panel</div>
+          <div class="action-panel">
+            <div class="action-row">
+              <div class="action-label win">Biggest Win</div>
+              <div class="action-text" id="actionWin">Add insights to see your biggest win.</div>
+            </div>
+            <div class="action-row">
+              <div class="action-label problem">Biggest Problem</div>
+              <div class="action-text" id="actionProblem">Add insights to flag the biggest problem.</div>
+            </div>
+            <div class="action-row">
+              <div class="action-label step">Next Step</div>
+              <div class="action-text" id="actionStep">Define the next step for this week.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. SALES -->
+    <section class="page hidden" id="page-sales">
+      <div class="card">
+        <div class="card-title">Add Daily Sales Entry</div>
+        <form id="salesForm" class="form-grid">
+          <label>Date <input type="date" name="date" required></label>
+          <label>Shopify Sales <input type="number" step="0.01" name="shopifyRevenue" placeholder="0.00"></label>
+          <label>TikTok Sales <input type="number" step="0.01" name="tiktokRevenue" placeholder="0.00"></label>
+          <label>Orders <input type="number" name="orders" placeholder="0"></label>
+          <label>Refunds ($) <input type="number" step="0.01" name="refunds" placeholder="0.00"></label>
+          <label>Ad Spend <input type="number" step="0.01" name="adSpend" placeholder="0.00"></label>
+          <label>Shopify Sessions <input type="number" name="sessions" placeholder="0"></label>
+          <label>Cart Abandonment % <input type="number" step="0.01" name="cartAbandon" placeholder="0"></label>
+          <label>Returning Customers <input type="number" name="returningCustomers" placeholder="0"></label>
+          <label>TikTok GMV <input type="number" step="0.01" name="tiktokGMV" placeholder="0.00"></label>
+          <label>TikTok Product Views <input type="number" name="tiktokViews" placeholder="0"></label>
+          <label>TikTok CTR % <input type="number" step="0.01" name="tiktokCTR" placeholder="0"></label>
+          <label>Video Sales <input type="number" step="0.01" name="videoSales" placeholder="0"></label>
+          <label>Live Sales <input type="number" step="0.01" name="liveSales" placeholder="0"></label>
+          <label>Affiliate Sales <input type="number" step="0.01" name="affiliateSales" placeholder="0"></label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Entry</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="row two">
+        <div class="card">
+          <div class="card-title">Period Comparisons</div>
+          <table class="data-table" id="salesCompareTable">
+            <thead><tr><th>Metric</th><th>Today</th><th>Yesterday</th><th>Δ</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title">Sales Mix</div>
+          <canvas id="chartSalesMix" height="160"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Sales Log</div>
+        <div class="table-scroll">
+          <table class="data-table" id="salesTable">
+            <thead><tr>
+              <th>Date</th><th>Shopify</th><th>TikTok</th><th>Combined</th>
+              <th>Orders</th><th>AOV</th><th>Conv %</th><th>Refunds</th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. PRODUCTS -->
+    <section class="page hidden" id="page-products">
+      <div class="card">
+        <div class="card-title">Add / Update Product</div>
+        <form id="productForm" class="form-grid">
+          <label>Product Name <input type="text" name="name" required></label>
+          <label>Flavor Profile
+            <select name="flavor">
+              <option value="">—</option>
+              <option>Sweet</option>
+              <option>Sour</option>
+              <option>Sweet & Sour</option>
+              <option>Mix</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label>Shopify Units Sold <input type="number" name="shopifyUnits" placeholder="0"></label>
+          <label>TikTok Units Sold <input type="number" name="tiktokUnits" placeholder="0"></label>
+          <label>Total Revenue <input type="number" step="0.01" name="totalRevenue" placeholder="0.00"></label>
+          <label>Returns <input type="number" name="returns" placeholder="0"></label>
+          <label>Inventory Left <input type="number" name="inventory" placeholder="0"></label>
+          <label>Top Complaint
+            <select name="complaintType">
+              <option value="">—</option>
+              <option>Freshness</option>
+              <option>Packaging</option>
+              <option>Melted</option>
+              <option>Wrong Item</option>
+              <option>Taste</option>
+              <option>Delayed</option>
+            </select>
+          </label>
+          <label>Status
+            <select name="status">
+              <option>Active</option>
+              <option>Best Seller</option>
+              <option>Slow Seller</option>
+              <option>Dead Stock</option>
+              <option>Viral</option>
+              <option>Bundle</option>
+            </select>
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Product</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="row two">
+        <div class="card">
+          <div class="card-title">Top Products by Revenue</div>
+          <canvas id="chartTopProducts" height="160"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">Flavor Trends</div>
+          <canvas id="chartFlavorTrend" height="160"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Product Log</div>
+        <div class="table-scroll">
+          <table class="data-table" id="productsTable">
+            <thead><tr>
+              <th>Product</th><th>Flavor</th><th>Shopify</th><th>TikTok</th><th>Revenue</th>
+              <th>Return %</th><th>Complaint</th><th>Inventory</th><th>Top Platform</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. COUPONS -->
+    <section class="page hidden" id="page-coupons">
+      <div class="card">
+        <div class="card-title">Add Coupon / Promotion</div>
+        <form id="couponForm" class="form-grid">
+          <label>Coupon Code <input type="text" name="code" required></label>
+          <label>Platform
+            <select name="platform">
+              <option>Shopify</option>
+              <option>TikTok Shop</option>
+              <option>Both</option>
+            </select>
+          </label>
+          <label>Type
+            <select name="type">
+              <option>Discount Code</option>
+              <option>Flash Sale</option>
+              <option>Bundle</option>
+              <option>Affiliate</option>
+              <option>Free Shipping</option>
+              <option>Strikethrough</option>
+            </select>
+          </label>
+          <label>Uses <input type="number" name="uses" placeholder="0"></label>
+          <label>Revenue Generated <input type="number" step="0.01" name="revenue" placeholder="0.00"></label>
+          <label>Discount Cost <input type="number" step="0.01" name="discountCost" placeholder="0.00"></label>
+          <label>Conversion % <input type="number" step="0.01" name="conversion" placeholder="0"></label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Coupon</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Coupon Performance</div>
+        <div class="table-scroll">
+          <table class="data-table" id="couponsTable">
+            <thead><tr>
+              <th>Coupon</th><th>Platform</th><th>Type</th><th>Uses</th>
+              <th>Revenue</th><th>Discount Cost</th><th>ROI</th><th>Conv %</th><th>Verdict</th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. MARKETING -->
+    <section class="page hidden" id="page-marketing">
+      <div class="row two">
+        <div class="card">
+          <div class="card-title">TikTok Content Tracker</div>
+          <form id="tiktokContentForm" class="form-grid">
+            <label>Date <input type="date" name="date" required></label>
+            <label>Video Title <input type="text" name="title" required></label>
+            <label>Type
+              <select name="type">
+                <option>Product Video</option>
+                <option>Affiliate Video</option>
+                <option>Live Session</option>
+                <option>UGC</option>
+                <option>Influencer</option>
+              </select>
+            </label>
+            <label>Views <input type="number" name="views" placeholder="0"></label>
+            <label>Likes <input type="number" name="likes" placeholder="0"></label>
+            <label>Shares <input type="number" name="shares" placeholder="0"></label>
+            <label>Comments <input type="number" name="comments" placeholder="0"></label>
+            <label>Sales Generated <input type="number" step="0.01" name="sales" placeholder="0.00"></label>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Save Video</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Instagram Content</div>
+          <form id="igContentForm" class="form-grid">
+            <label>Date <input type="date" name="date" required></label>
+            <label>Post Type
+              <select name="type">
+                <option>Reel</option>
+                <option>Photo</option>
+                <option>Story</option>
+                <option>Carousel</option>
+                <option>UGC</option>
+                <option>Influencer</option>
+              </select>
+            </label>
+            <label>Reach <input type="number" name="reach" placeholder="0"></label>
+            <label>Engagement <input type="number" name="engagement" placeholder="0"></label>
+            <label>Story Views <input type="number" name="storyViews" placeholder="0"></label>
+            <label>Reel Views <input type="number" name="reelViews" placeholder="0"></label>
+            <label>Link Clicks <input type="number" name="linkClicks" placeholder="0"></label>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Save Post</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="row two">
+        <div class="card">
+          <div class="card-title">Followers Growth</div>
+          <form id="followersForm" class="form-inline">
+            <label>Date <input type="date" name="date" required></label>
+            <label>TikTok Followers <input type="number" name="tiktokFollowers" placeholder="0"></label>
+            <label>Instagram Followers <input type="number" name="igFollowers" placeholder="0"></label>
+            <button type="submit" class="btn btn-primary">Log</button>
+          </form>
+          <canvas id="chartFollowers" height="140"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">Best Performing Content (by Sales)</div>
+          <div class="table-scroll">
+            <table class="data-table" id="bestContentTable">
+              <thead><tr><th>Date</th><th>Title</th><th>Type</th><th>Views</th><th>Sales</th><th>Viral Score</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Affiliate / Influencer Performance</div>
+        <form id="affiliateForm" class="form-grid">
+          <label>Affiliate Name <input type="text" name="name" required></label>
+          <label>Sales <input type="number" step="0.01" name="sales" placeholder="0.00"></label>
+          <label>Views <input type="number" name="views" placeholder="0"></label>
+          <label>Commission <input type="number" step="0.01" name="commission" placeholder="0.00"></label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+        <div class="table-scroll">
+          <table class="data-table" id="affiliatesTable">
+            <thead><tr><th>Affiliate</th><th>Sales</th><th>Commission</th><th>ROI</th><th>Views</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. INVENTORY -->
+    <section class="page hidden" id="page-inventory">
+      <div class="card">
+        <div class="card-title">Inventory & Fulfillment Entry</div>
+        <form id="inventoryForm" class="form-grid">
+          <label>Product <input type="text" name="product" required></label>
+          <label>Beginning Stock <input type="number" name="beginning" placeholder="0"></label>
+          <label>Sold <input type="number" name="sold" placeholder="0"></label>
+          <label>Delays <input type="number" name="delays" placeholder="0"></label>
+          <label>Damaged <input type="number" name="damaged" placeholder="0"></label>
+          <label>Claims Filed <input type="number" name="claimsFiled" placeholder="0"></label>
+          <label>Claims Approved <input type="number" name="claimsApproved" placeholder="0"></label>
+          <label>Returns <input type="number" name="returns" placeholder="0"></label>
+          <label>Freshness Issues <input type="number" name="freshness" placeholder="0"></label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Inventory & Fulfillment Log</div>
+        <div class="table-scroll">
+          <table class="data-table" id="inventoryTable">
+            <thead><tr>
+              <th>Product</th><th>Beginning</th><th>Sold</th><th>Remaining</th>
+              <th>Delays</th><th>Damaged</th><th>Claims (F/A)</th><th>Returns</th><th>Freshness</th><th>Alert</th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. CUSTOMER -->
+    <section class="page hidden" id="page-customers">
+      <div class="card">
+        <div class="card-title">Customer Experience Entry</div>
+        <form id="customerForm" class="form-grid">
+          <label>Date <input type="date" name="date" required></label>
+          <label>Complaints <input type="number" name="complaints" placeholder="0"></label>
+          <label>Positive Reviews <input type="number" name="positive" placeholder="0"></label>
+          <label>Refund Requests <input type="number" name="refundRequests" placeholder="0"></label>
+          <label>Approved Returns <input type="number" name="approvedReturns" placeholder="0"></label>
+          <label>Main Complaint
+            <select name="mainComplaint">
+              <option value="">—</option>
+              <option>Not Fresh</option>
+              <option>Melted</option>
+              <option>Delayed</option>
+              <option>Wrong Item</option>
+              <option>Packaging</option>
+              <option>Taste</option>
+            </select>
+          </label>
+          <label>Resolution
+            <select name="resolution">
+              <option>Refunded</option>
+              <option>Replaced</option>
+              <option>Discount Offered</option>
+              <option>No Action</option>
+              <option>Pending</option>
+            </select>
+          </label>
+          <label>Repeat Buyers (today) <input type="number" name="repeatBuyers" placeholder="0"></label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="row two">
+        <div class="card">
+          <div class="card-title">Customer Sentiment Score</div>
+          <div class="big-stat" id="sentimentScore">—</div>
+          <div class="sub" id="sentimentNote">Logged from positive reviews vs complaints.</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Top Complaint Types</div>
+          <canvas id="chartComplaints" height="160"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Customer Log</div>
+        <div class="table-scroll">
+          <table class="data-table" id="customerTable">
+            <thead><tr>
+              <th>Date</th><th>Complaints</th><th>Positive</th><th>Refund Req.</th>
+              <th>Approved Returns</th><th>Main Complaint</th><th>Resolution</th><th>Repeat</th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. FINANCE -->
+    <section class="page hidden" id="page-finance">
+      <div class="card">
+        <div class="card-title">Financial Entry</div>
+        <form id="financeForm" class="form-grid">
+          <label>Period Start <input type="date" name="periodStart" required></label>
+          <label>Period End <input type="date" name="periodEnd" required></label>
+          <label>Revenue <input type="number" step="0.01" name="revenue"></label>
+          <label>COGS <input type="number" step="0.01" name="cogs"></label>
+          <label>Packaging <input type="number" step="0.01" name="packaging"></label>
+          <label>Shipping <input type="number" step="0.01" name="shipping"></label>
+          <label>Ads <input type="number" step="0.01" name="ads"></label>
+          <label>Discounts <input type="number" step="0.01" name="discounts"></label>
+          <label>Refunds <input type="number" step="0.01" name="refunds"></label>
+          <label>Platform Fees <input type="number" step="0.01" name="fees"></label>
+          <label>Customers Acquired <input type="number" name="customersAcquired"></label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="row two">
+        <div class="card">
+          <div class="card-title">Profitability Snapshot (latest)</div>
+          <div class="finance-grid">
+            <div><span>Gross Profit</span><strong id="finGrossProfit">$0</strong></div>
+            <div><span>Net Estimate</span><strong id="finNet">$0</strong></div>
+            <div><span>Gross Margin</span><strong id="finMargin">0%</strong></div>
+            <div><span>Marketing Spend</span><strong id="finMarketing">$0</strong></div>
+            <div><span>CAC</span><strong id="finCAC">$0</strong></div>
+            <div><span>Refund Loss</span><strong id="finRefund">$0</strong></div>
+            <div><span>Coupon Cost</span><strong id="finCoupon">$0</strong></div>
+            <div><span>Platform Fees</span><strong id="finFees">$0</strong></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Cost Breakdown</div>
+          <canvas id="chartCostBreakdown" height="180"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Financial Log</div>
+        <div class="table-scroll">
+          <table class="data-table" id="financeTable">
+            <thead><tr>
+              <th>Period</th><th>Revenue</th><th>COGS</th><th>Pkg</th><th>Ship</th>
+              <th>Ads</th><th>Discounts</th><th>Refunds</th><th>Fees</th><th>Net</th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. INSIGHTS -->
+    <section class="page hidden" id="page-insights">
+      <div class="card">
+        <div class="card-title">Action Panel</div>
+        <form id="actionForm" class="form-grid">
+          <label class="full">Biggest Win
+            <input type="text" name="win" placeholder="e.g. Sweet & Sour Variety Mix +32%">
+          </label>
+          <label class="full">Biggest Problem
+            <input type="text" name="problem" placeholder="e.g. Swedish Candy freshness complaints">
+          </label>
+          <label class="full">Next Step
+            <input type="text" name="step" placeholder="e.g. Improve supplier + scale TikTok affiliate">
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Action Panel</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Weekly Recommendations</div>
+        <form id="recForm" class="form-grid">
+          <label>Bucket
+            <select name="bucket">
+              <option value="scale">Scale</option>
+              <option value="improve">Improve</option>
+              <option value="test">Test</option>
+              <option value="kill">Kill</option>
+            </select>
+          </label>
+          <label class="full">Recommendation
+            <input type="text" name="text" placeholder="e.g. Scale TikTok affiliate program for Sour Mix">
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Add</button>
+          </div>
+        </form>
+        <div class="rec-grid">
+          <div class="rec-col rec-scale">
+            <div class="rec-title">Scale</div>
+            <ul id="recScale"></ul>
+          </div>
+          <div class="rec-col rec-improve">
+            <div class="rec-title">Improve</div>
+            <ul id="recImprove"></ul>
+          </div>
+          <div class="rec-col rec-test">
+            <div class="rec-title">Test</div>
+            <ul id="recTest"></ul>
+          </div>
+          <div class="rec-col rec-kill">
+            <div class="rec-title">Kill</div>
+            <ul id="recKill"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="row two">
+        <div class="card">
+          <div class="card-title">Platform Comparison</div>
+          <table class="data-table" id="platformCompare">
+            <thead><tr><th>Metric</th><th>Shopify</th><th>TikTok</th><th>Winner</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title">Auto-Generated Insights</div>
+          <ul class="auto-insights" id="autoInsights"></ul>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
