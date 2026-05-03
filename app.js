@@ -15,7 +15,7 @@ const defaultState = {
   finance: [],
   actions: { win: '', problem: '', step: '' },
   recommendations: { scale: [], improve: [], test: [], kill: [] },
-  filters: { period: 'week' },
+  filters: { period: 'week', customStart: '', customEnd: '' },
 };
 
 let state = load();
@@ -69,28 +69,83 @@ document.querySelectorAll('.nav-item').forEach(el => {
 });
 
 /* ---------- Period filter ---------- */
+const periodLabels = {
+  day: 'Today',
+  week: 'Last 7 Days',
+  month: 'This Month',
+  lastMonth: 'Last Month',
+  quarter: 'This Quarter',
+  year: 'This Year',
+  all: 'All Time',
+  custom: 'Custom Range',
+};
+
 document.getElementById('periodFilter').addEventListener('change', e => {
   state.filters.period = e.target.value;
   save();
+  toggleCustomRange();
   renderAll();
 });
 document.getElementById('periodFilter').value = state.filters.period;
 
-/* ---------- Period helpers ---------- */
-function periodStart(period) {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (period === 'day') return d;
-  if (period === 'week') { const x = new Date(d); x.setDate(x.getDate() - 6); return x; }
-  if (period === 'month') return new Date(now.getFullYear(), now.getMonth(), 1);
-  if (period === 'quarter') { const q = Math.floor(now.getMonth() / 3) * 3; return new Date(now.getFullYear(), q, 1); }
-  if (period === 'year') return new Date(now.getFullYear(), 0, 1);
-  return d;
+document.getElementById('customStart').addEventListener('change', e => {
+  state.filters.customStart = e.target.value; save(); renderAll();
+});
+document.getElementById('customEnd').addEventListener('change', e => {
+  state.filters.customEnd = e.target.value; save(); renderAll();
+});
+document.getElementById('customStart').value = state.filters.customStart || '';
+document.getElementById('customEnd').value = state.filters.customEnd || '';
+
+function toggleCustomRange() {
+  const wrap = document.getElementById('customRange');
+  if (state.filters.period === 'custom') wrap.removeAttribute('hidden');
+  else wrap.setAttribute('hidden', '');
 }
-function inPeriod(dateStr, period) {
+toggleCustomRange();
+
+/* ---------- Period helpers ---------- */
+function activeWindow() {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const p = state.filters.period;
+  if (p === 'day') return { start: startOfToday, end: today };
+  if (p === 'week') { const s = new Date(startOfToday); s.setDate(s.getDate() - 6); return { start: s, end: today }; }
+  if (p === 'month') return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: today };
+  if (p === 'lastMonth') {
+    const s = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const e = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    return { start: s, end: e };
+  }
+  if (p === 'quarter') { const q = Math.floor(now.getMonth() / 3) * 3; return { start: new Date(now.getFullYear(), q, 1), end: today }; }
+  if (p === 'year') return { start: new Date(now.getFullYear(), 0, 1), end: today };
+  if (p === 'all') return { start: new Date(2000, 0, 1), end: today };
+  if (p === 'custom') {
+    const s = state.filters.customStart ? new Date(state.filters.customStart) : new Date(2000, 0, 1);
+    const e = state.filters.customEnd ? new Date(state.filters.customEnd + 'T23:59:59') : today;
+    return { start: s, end: e };
+  }
+  return { start: startOfToday, end: today };
+}
+function periodStart(period) {
+  // legacy helper used elsewhere; resolves to the active window's start when
+  // the requested period matches the current filter, otherwise computes fresh.
+  const saved = state.filters.period;
+  state.filters.period = period;
+  const w = activeWindow();
+  state.filters.period = saved;
+  return w.start;
+}
+function inPeriod(dateStr) {
   if (!dateStr) return false;
   const d = new Date(dateStr);
-  return d >= periodStart(period) && d <= new Date();
+  const w = activeWindow();
+  return d >= w.start && d <= w.end;
+}
+function fmtRangeShort(w) {
+  const fmtD = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: w.start.getFullYear() !== w.end.getFullYear() ? 'numeric' : undefined });
+  return `${fmtD(w.start)} → ${fmtD(w.end)}`;
 }
 /* A sales entry now has periodStart + periodEnd. We treat the entry as
    "in period" when its range overlaps the active filter window.  Old
@@ -110,10 +165,18 @@ function entryDays(r) {
   return Math.max(1, Math.round((rng.end - rng.start) / 86400000) + 1);
 }
 function filteredSales() {
-  const window = { start: periodStart(state.filters.period), end: new Date() };
+  const win = activeWindow();
   return state.sales.filter(r => {
     const rng = entryRange(r);
-    return rng && rangesOverlap(rng, window);
+    return rng && rangesOverlap(rng, win);
+  });
+}
+function filteredByDate(rows) {
+  const win = activeWindow();
+  return rows.filter(r => {
+    if (!r.date) return false;
+    const d = new Date(r.date);
+    return d >= win.start && d <= win.end;
   });
 }
 
@@ -173,12 +236,14 @@ document.getElementById('followersForm').addEventListener('submit', e => {
 document.getElementById('affiliateForm').addEventListener('submit', e => {
   e.preventDefault();
   state.affiliates.push({ id: uid(), ...getForm(e.target) });
+  state.affiliates.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
   save(); e.target.reset(); renderAll();
 });
 
 document.getElementById('inventoryForm').addEventListener('submit', e => {
   e.preventDefault();
   state.inventory.push({ id: uid(), ...getForm(e.target) });
+  state.inventory.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
   save(); e.target.reset(); renderAll();
 });
 
@@ -510,9 +575,11 @@ function renderMarketing() {
 
   // Affiliates
   const aBody = document.querySelector('#affiliatesTable tbody');
-  aBody.innerHTML = state.affiliates.map(a => {
+  const sortedAff = [...state.affiliates].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  aBody.innerHTML = sortedAff.map(a => {
     const roi = num(a.commission) ? (num(a.sales) - num(a.commission)) / num(a.commission) : 0;
     return `<tr>
+      <td>${a.date || ''}</td>
       <td>${a.name}</td>
       <td>${fmt(num(a.sales), true)}</td>
       <td>${fmt(num(a.commission), true)}</td>
@@ -520,19 +587,21 @@ function renderMarketing() {
       <td>${fmt(num(a.views))}</td>
       <td><button class="btn btn-sm btn-danger-ghost" onclick="deleteFrom('affiliates','${a.id}')">×</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">No affiliates yet.</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">No affiliates yet. Log your first creator above.</td></tr>';
 
   renderFollowersChart();
 }
 
 function renderInventory() {
   const tbody = document.querySelector('#inventoryTable tbody');
-  tbody.innerHTML = state.inventory.map(i => {
+  const sorted = [...state.inventory].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  tbody.innerHTML = sorted.map(i => {
     const remaining = num(i.beginning) - num(i.sold);
     let alert = `<span class="alert ok">OK</span>`;
     if (remaining <= 0) alert = `<span class="alert out">Out</span>`;
     else if (remaining < num(i.beginning) * 0.2) alert = `<span class="alert low">Low</span>`;
     return `<tr>
+      <td>${i.date || ''}</td>
       <td>${i.product}</td>
       <td>${num(i.beginning)}</td>
       <td>${num(i.sold)}</td>
@@ -545,12 +614,13 @@ function renderInventory() {
       <td>${alert}</td>
       <td><button class="btn btn-sm btn-danger-ghost" onclick="deleteFrom('inventory','${i.id}')">×</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:20px">No inventory entries yet.</td></tr>';
+  }).join('') || '<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px">No inventory entries yet. Add one above to start tracking stock & fulfillment.</td></tr>';
 }
 
 function renderCustomers() {
   const tbody = document.querySelector('#customerTable tbody');
-  tbody.innerHTML = [...state.customer].sort((a,b) => new Date(b.date) - new Date(a.date)).map(c => `
+  const inRange = filteredByDate(state.customer);
+  tbody.innerHTML = [...inRange].sort((a,b) => new Date(b.date) - new Date(a.date)).map(c => `
     <tr>
       <td>${c.date || ''}</td>
       <td>${num(c.complaints)}</td>
@@ -561,11 +631,11 @@ function renderCustomers() {
       <td>${c.resolution || '—'}</td>
       <td>${num(c.repeatBuyers)}</td>
       <td><button class="btn btn-sm btn-danger-ghost" onclick="deleteFrom('customer','${c.id}')">×</button></td>
-    </tr>`).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">No customer entries yet.</td></tr>';
+    </tr>`).join('') || `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">No customer entries in this date range. Try changing the range or add a new entry.</td></tr>`;
 
-  // sentiment
-  const pos = state.customer.reduce((s, c) => s + num(c.positive), 0);
-  const neg = state.customer.reduce((s, c) => s + num(c.complaints), 0);
+  // sentiment uses the active period
+  const pos = inRange.reduce((s, c) => s + num(c.positive), 0);
+  const neg = inRange.reduce((s, c) => s + num(c.complaints), 0);
   const score = pos + neg > 0 ? Math.round((pos / (pos + neg)) * 100) : null;
   document.getElementById('sentimentScore').textContent = score === null ? '—' : score + '%';
   document.getElementById('sentimentNote').textContent = score === null
@@ -803,8 +873,50 @@ function chartOpts() {
   };
 }
 
+/* ---------- Range indicator + empty-state ---------- */
+function renderRangeIndicator() {
+  const w = activeWindow();
+  const label = periodLabels[state.filters.period] || '';
+  const range = state.filters.period === 'all' ? 'all dates' : fmtRangeShort(w);
+  document.getElementById('rangeText').textContent = `${label} · ${range}`;
+
+  const lastTouched = lastUpdatedTimestamp();
+  document.getElementById('rangeUpdated').textContent = lastTouched
+    ? `Last entry: ${lastTouched}`
+    : 'No data yet — start by adding a Sales entry';
+}
+function lastUpdatedTimestamp() {
+  const dates = [];
+  state.sales.forEach(r => dates.push(r.periodEnd || r.date));
+  state.finance.forEach(r => dates.push(r.periodEnd));
+  state.customer.forEach(r => dates.push(r.date));
+  state.inventory.forEach(r => dates.push(r.date));
+  state.tiktokContent.forEach(r => dates.push(r.date));
+  state.igContent.forEach(r => dates.push(r.date));
+  state.followers.forEach(r => dates.push(r.date));
+  state.affiliates.forEach(r => dates.push(r.date));
+  const valid = dates.filter(Boolean).map(d => new Date(d)).filter(d => !isNaN(d));
+  if (!valid.length) return null;
+  const max = new Date(Math.max(...valid));
+  return max.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function renderEmptyHint() {
+  const hint = document.getElementById('emptyHint');
+  const isEmpty = state.sales.length === 0 && state.products.length === 0 && state.finance.length === 0;
+  if (isEmpty) hint.removeAttribute('hidden');
+  else hint.setAttribute('hidden', '');
+}
+document.querySelectorAll('[data-jump]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    showSection(a.dataset.jump);
+  });
+});
+
 /* ---------- Render all ---------- */
 function renderAll() {
+  renderRangeIndicator();
+  renderEmptyHint();
   renderDashboard();
   renderSales();
   renderProducts();

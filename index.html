@@ -44,24 +44,41 @@
       </div>
       <div class="topbar-right">
         <div class="date-filter">
-          <label>View:</label>
-          <select id="periodFilter">
-            <option value="day">Day</option>
-            <option value="week" selected>Week</option>
-            <option value="month">Month</option>
-            <option value="quarter">Quarter</option>
-            <option value="year">Year</option>
+          <label>Date range:</label>
+          <select id="periodFilter" title="Pick a preset or choose Custom to set your own dates">
+            <option value="day">Today</option>
+            <option value="week" selected>Last 7 Days</option>
+            <option value="month">This Month</option>
+            <option value="lastMonth">Last Month</option>
+            <option value="quarter">This Quarter</option>
+            <option value="year">This Year</option>
+            <option value="all">All Time</option>
+            <option value="custom">Custom…</option>
           </select>
+          <div class="custom-range" id="customRange" hidden>
+            <input type="date" id="customStart" />
+            <span class="dash">→</span>
+            <input type="date" id="customEnd" />
+          </div>
         </div>
-        <div class="health-badge">
+        <div class="health-badge" title="Composite score from sales, fulfillment, customer sentiment and marketing activity">
           <span class="health-label">Store Health</span>
           <span class="health-score" id="healthScore">--</span>
         </div>
+      </div>
+      <div class="range-indicator" id="rangeIndicator">
+        <span class="range-dot"></span>
+        <span id="rangeText">Showing last 7 days</span>
+        <span class="range-sep">·</span>
+        <span id="rangeUpdated" class="range-updated">No data yet</span>
       </div>
     </header>
 
     <!-- 1. EXECUTIVE SUMMARY -->
     <section class="page" id="page-dashboard">
+      <div class="empty-hint" id="emptyHint" hidden>
+        <strong>Welcome!</strong> This dashboard is empty. Head to <a href="#" data-jump="sales">Sales</a> to log your first entry, then add <a href="#" data-jump="products">Products</a>, <a href="#" data-jump="finance">Finance</a>, and <a href="#" data-jump="customers">Customers</a>. The Executive Summary fills in automatically.
+      </div>
       <div class="kpi-group">
         <div class="kpi-group-title">Daily Snapshot</div>
         <div class="kpi-grid">
@@ -379,6 +396,7 @@
       <div class="card">
         <div class="card-title">Affiliate / Influencer Performance</div>
         <form id="affiliateForm" class="form-grid">
+          <label>Date <input type="date" name="date" required></label>
           <label>Affiliate Name <input type="text" name="name" required></label>
           <label>Sales <input type="number" step="0.01" name="sales" placeholder="0.00"></label>
           <label>Views <input type="number" name="views" placeholder="0"></label>
@@ -389,7 +407,7 @@
         </form>
         <div class="table-scroll">
           <table class="data-table" id="affiliatesTable">
-            <thead><tr><th>Affiliate</th><th>Sales</th><th>Commission</th><th>ROI</th><th>Views</th><th></th></tr></thead>
+            <thead><tr><th>Date</th><th>Affiliate</th><th>Sales</th><th>Commission</th><th>ROI</th><th>Views</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -401,6 +419,7 @@
       <div class="card">
         <div class="card-title">Inventory & Fulfillment Entry</div>
         <form id="inventoryForm" class="form-grid">
+          <label>Date <input type="date" name="date" required></label>
           <label>Product <input type="text" name="product" required></label>
           <label>Beginning Stock <input type="number" name="beginning" placeholder="0"></label>
           <label>Sold <input type="number" name="sold" placeholder="0"></label>
@@ -421,7 +440,7 @@
         <div class="table-scroll">
           <table class="data-table" id="inventoryTable">
             <thead><tr>
-              <th>Product</th><th>Beginning</th><th>Sold</th><th>Remaining</th>
+              <th>Date</th><th>Product</th><th>Beginning</th><th>Sold</th><th>Remaining</th>
               <th>Delays</th><th>Damaged</th><th>Claims (F/A)</th><th>Returns</th><th>Freshness</th><th>Alert</th><th></th>
             </tr></thead>
             <tbody></tbody>
