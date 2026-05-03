@@ -92,8 +92,29 @@ function inPeriod(dateStr, period) {
   const d = new Date(dateStr);
   return d >= periodStart(period) && d <= new Date();
 }
+/* A sales entry now has periodStart + periodEnd. We treat the entry as
+   "in period" when its range overlaps the active filter window.  Old
+   single-day entries (with `date`) are still supported as a fallback. */
+function entryRange(r) {
+  const start = r.periodStart || r.date;
+  const end = r.periodEnd || r.date || r.periodStart;
+  if (!start || !end) return null;
+  return { start: new Date(start), end: new Date(end) };
+}
+function rangesOverlap(a, b) {
+  return a.start <= b.end && b.start <= a.end;
+}
+function entryDays(r) {
+  const rng = entryRange(r);
+  if (!rng) return 1;
+  return Math.max(1, Math.round((rng.end - rng.start) / 86400000) + 1);
+}
 function filteredSales() {
-  return state.sales.filter(r => inPeriod(r.date, state.filters.period));
+  const window = { start: periodStart(state.filters.period), end: new Date() };
+  return state.sales.filter(r => {
+    const rng = entryRange(r);
+    return rng && rangesOverlap(rng, window);
+  });
 }
 
 /* ---------- Forms ---------- */
@@ -106,7 +127,12 @@ function getForm(form) {
 document.getElementById('salesForm').addEventListener('submit', e => {
   e.preventDefault();
   const d = getForm(e.target);
+  if (d.periodStart && d.periodEnd && new Date(d.periodEnd) < new Date(d.periodStart)) {
+    alert('Period End must be on or after Period Start.');
+    return;
+  }
   state.sales.push({ id: uid(), ...d });
+  state.sales.sort((a, b) => new Date(a.periodEnd || a.date) - new Date(b.periodEnd || b.date));
   save(); e.target.reset(); renderAll();
 });
 
@@ -300,9 +326,9 @@ function renderDashboard() {
   const weekStart = new Date(now); weekStart.setDate(weekStart.getDate() - 6);
   const prevStart = new Date(weekStart); prevStart.setDate(prevStart.getDate() - 7);
   const prevEnd = new Date(weekStart); prevEnd.setDate(prevEnd.getDate() - 1);
-  const inRange = (d, s, e) => { const x = new Date(d); return x >= s && x <= e; };
-  const thisWeek = state.sales.filter(r => inRange(r.date, weekStart, now));
-  const lastWeek = state.sales.filter(r => inRange(r.date, prevStart, prevEnd));
+  const inWindow = (r, s, e) => { const rng = entryRange(r); return rng && rangesOverlap(rng, { start: s, end: e }); };
+  const thisWeek = state.sales.filter(r => inWindow(r, weekStart, now));
+  const lastWeek = state.sales.filter(r => inWindow(r, prevStart, prevEnd));
   const tw = kpiTotals(thisWeek), lw = kpiTotals(lastWeek);
   const twRev = tw.shopify + tw.tiktok, lwRev = lw.shopify + lw.tiktok;
   const growth = lwRev ? ((twRev - lwRev) / lwRev) * 100 : 0;
@@ -333,7 +359,10 @@ function renderDashboard() {
   } else { document.getElementById('kpiSocialGrowth').textContent = '+0'; }
 
   // monthly
-  const monthRows = state.sales.filter(r => inPeriod(r.date, 'month'));
+  const monthWin = { start: periodStart('month'), end: new Date() };
+  const monthRows = state.sales.filter(r => {
+    const rng = entryRange(r); return rng && rangesOverlap(rng, monthWin);
+  });
   const m = kpiTotals(monthRows);
   const mRev = m.shopify + m.tiktok;
   document.getElementById('kpiGross').textContent = fmt(mRev, true);
@@ -360,13 +389,21 @@ function renderDashboard() {
 
 function renderSales() {
   const tbody = document.querySelector('#salesTable tbody');
-  const rows = [...state.sales].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const rows = [...state.sales].sort((a, b) => {
+    const ad = new Date(b.periodEnd || b.date || 0);
+    const bd = new Date(a.periodEnd || a.date || 0);
+    return ad - bd;
+  });
   tbody.innerHTML = rows.map(r => {
     const combined = num(r.shopifyRevenue) + num(r.tiktokRevenue);
     const aov = num(r.orders) ? combined / num(r.orders) : 0;
     const conv = num(r.sessions) ? (num(r.orders) / num(r.sessions)) * 100 : 0;
+    const start = r.periodStart || r.date || '';
+    const end = r.periodEnd || r.date || '';
+    const period = start === end ? start : `${start} → ${end}`;
     return `<tr>
-      <td>${r.date || ''}</td>
+      <td>${period}</td>
+      <td>${entryDays(r)}</td>
       <td>${fmt(num(r.shopifyRevenue), true)}</td>
       <td>${fmt(num(r.tiktokRevenue), true)}</td>
       <td>${fmt(combined, true)}</td>
@@ -376,20 +413,24 @@ function renderSales() {
       <td>${fmt(num(r.refunds), true)}</td>
       <td><button class="btn btn-sm btn-danger-ghost" onclick="deleteFrom('sales','${r.id}')">×</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">No sales entries yet.</td></tr>';
+  }).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:20px">No sales entries yet.</td></tr>';
 
   renderSalesCompareTable();
   renderSalesMixChart();
 }
 
 function renderSalesCompareTable() {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const yest = new Date(today); yest.setDate(yest.getDate() - 1);
-  const todayStr = today.toISOString().slice(0,10);
-  const yestStr = yest.toISOString().slice(0,10);
-  const tRows = state.sales.filter(r => r.date === todayStr);
-  const yRows = state.sales.filter(r => r.date === yestStr);
-  const t = kpiTotals(tRows), y = kpiTotals(yRows);
+  const now = new Date();
+  const curStart = periodStart(state.filters.period);
+  const lengthMs = now - curStart;
+  const prevEnd = new Date(curStart.getTime() - 1);
+  const prevStart = new Date(curStart.getTime() - lengthMs);
+  const curWin = { start: curStart, end: now };
+  const prevWin = { start: prevStart, end: prevEnd };
+  const inWin = win => state.sales.filter(r => {
+    const rng = entryRange(r); return rng && rangesOverlap(rng, win);
+  });
+  const t = kpiTotals(inWin(curWin)), y = kpiTotals(inWin(prevWin));
   const tRev = t.shopify + t.tiktok, yRev = y.shopify + y.tiktok;
   const delta = (a, b) => {
     if (b === 0) return a === 0 ? '<span class="delta-flat">—</span>' : '<span class="delta-up">+∞</span>';
@@ -592,13 +633,14 @@ function renderInsights() {
   // platform comparison
   const all = state.sales;
   const t = kpiTotals(all);
+  const totalDays = all.reduce((s, r) => s + entryDays(r), 0);
   const shopOrders = state.sales.reduce((s,r) => num(r.shopifyRevenue) > 0 ? s + num(r.orders) : s, 0);
   const tikOrders = state.sales.reduce((s,r) => num(r.tiktokRevenue) > 0 ? s + num(r.orders) : s, 0);
   const winner = (a, b) => a > b ? 'Shopify' : b > a ? 'TikTok' : '—';
   document.querySelector('#platformCompare tbody').innerHTML = `
     <tr><td>Total Revenue</td><td>${fmt(t.shopify, true)}</td><td>${fmt(t.tiktok, true)}</td><td>${winner(t.shopify, t.tiktok)}</td></tr>
     <tr><td>Order Volume*</td><td>${shopOrders}</td><td>${tikOrders}</td><td>${winner(shopOrders, tikOrders)}</td></tr>
-    <tr><td>Avg Daily Rev</td><td>${fmt(state.sales.length ? t.shopify / state.sales.length : 0, true)}</td><td>${fmt(state.sales.length ? t.tiktok / state.sales.length : 0, true)}</td><td>${winner(t.shopify, t.tiktok)}</td></tr>
+    <tr><td>Avg Daily Rev</td><td>${fmt(totalDays ? t.shopify / totalDays : 0, true)}</td><td>${fmt(totalDays ? t.tiktok / totalDays : 0, true)}</td><td>${winner(t.shopify, t.tiktok)}</td></tr>
   `;
 
   // auto-generated insights
@@ -629,8 +671,15 @@ function renderRevenueTrendChart() {
   const ctx = document.getElementById('chartRevenueTrend');
   if (!ctx) return;
   destroy('rev');
-  const sorted = [...state.sales].sort((a,b) => new Date(a.date) - new Date(b.date)).slice(-30);
-  const labels = sorted.map(r => r.date);
+  const sorted = [...state.sales]
+    .filter(r => entryRange(r))
+    .sort((a, b) => new Date(a.periodEnd || a.date) - new Date(b.periodEnd || b.date))
+    .slice(-30);
+  const labels = sorted.map(r => {
+    const s = r.periodStart || r.date || '';
+    const e = r.periodEnd || r.date || '';
+    return s === e ? s : `${s} → ${e}`;
+  });
   charts.rev = new Chart(ctx, {
     type: 'line',
     data: {
